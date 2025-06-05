@@ -3,6 +3,9 @@
 Prepare a python environment:
 
 ```bash
+python --version
+# 3.13.2
+
 python -m venv vnevn
 source vnevn/bin/activate
 pip install -U pip
