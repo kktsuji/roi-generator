@@ -9,13 +9,10 @@ import os
 import csv
 
 
-if __name__ == "__main__":
-    load_dotenv()
-    ROOT_DIR_PATH = os.environ.get("ROOT_DIR_PATH")
-    OUT_DIR_PATH = os.environ.get("OUT_DIR_PATH")
-    CSV_ROOT_PATH = ROOT_DIR_PATH + "source_code/CADforCTCs/CADforCTCs/output/"
+def _extract_and_save_roi(base_root_dir_path, base_out_dir_path):
+    CSV_ROOT_PATH = base_root_dir_path + "source_code/CADforCTCs/CADforCTCs/output/"
     CSV_ROOT_PATH_LIST = glob.glob(CSV_ROOT_PATH + "*tif/")
-    IMG_ROOT_PATH = ROOT_DIR_PATH + "data/"
+    IMG_ROOT_PATH = base_root_dir_path + "data/"
     ROI_SIZE = 40
     ROI_HALF_SIZE = ROI_SIZE // 2
 
@@ -24,7 +21,7 @@ if __name__ == "__main__":
         print(csv_root_path)
         print(dir_name)
 
-        out_dir_path = OUT_DIR_PATH + dir_name + "/"
+        out_dir_path = base_out_dir_path + dir_name + "/"
         if not os.path.exists(out_dir_path):
             os.makedirs(out_dir_path)
 
@@ -98,3 +95,74 @@ if __name__ == "__main__":
                 out_dir_path + f"img-no{str(img_no).zfill(3)}_y{y}_x{x}_r.png",
                 roi_r.astype(np.uint16),
             )
+
+
+def _round(src, decimals=0):
+    return np.floor(src * 10**decimals + 0.5) / 10**decimals
+
+
+def _make_pseudo_rgb_image(base_out_dir_path):
+    BIT_DEPTH_IN = 16
+    BIT_DEPTH_OUT = 8
+    MAX_VALUE_DIGIT_IN = int(pow(2, BIT_DEPTH_IN) - 1)
+    MAX_VALUE_DIGIT_OUT = int(pow(2, BIT_DEPTH_OUT) - 1)
+
+    OUT_DIR_PATH = base_out_dir_path + "pseudo_rgb/"
+    if not os.path.exists(OUT_DIR_PATH):
+        os.makedirs(OUT_DIR_PATH)
+
+    roi_dir_list = glob.glob(base_out_dir_path + "*/")
+    for roi_dir in roi_dir_list:
+        if roi_dir == OUT_DIR_PATH:
+            continue
+
+        dir_name = os.path.basename(roi_dir[:-1]).replace(" ", "-")
+        print(roi_dir)
+        print("  -", dir_name)
+
+        roi_path_list = glob.glob(roi_dir + "*_b.png")
+
+        for roi_path in roi_path_list:
+            roi_name = (
+                dir_name + "_" + os.path.basename(roi_path).replace("_b.png", ".png")
+            )
+            print("    -", roi_name)
+
+            roi_b = cv2.imread(roi_path, cv2.IMREAD_UNCHANGED)
+            roi_g = cv2.imread(
+                roi_path.replace("_b.png", "_g.png"), cv2.IMREAD_UNCHANGED
+            )
+            roi_r = cv2.imread(
+                roi_path.replace("_b.png", "_r.png"), cv2.IMREAD_UNCHANGED
+            )
+            if roi_b is None or roi_g is None or roi_r is None:
+                print("  - Error: ROI image not found or could not be read.")
+                exit()
+
+            pseudo_rgb_image = cv2.merge((roi_b, roi_g, roi_r))
+
+            pseudo_rgb_image_normalized = (
+                pseudo_rgb_image.astype(np.float64)
+                * MAX_VALUE_DIGIT_OUT
+                / MAX_VALUE_DIGIT_IN
+            )
+            pseudo_rgb_image_normalized = _round(pseudo_rgb_image_normalized)
+            pseudo_rgb_image_normalized = np.clip(
+                pseudo_rgb_image_normalized, 0, MAX_VALUE_DIGIT_OUT
+            )
+            pseudo_rgb_image_normalized = pseudo_rgb_image_normalized.astype(np.uint8)
+
+            cv2.imwrite(
+                OUT_DIR_PATH + roi_name,
+                pseudo_rgb_image_normalized,
+                [cv2.IMWRITE_PNG_COMPRESSION, 0],  # No compression
+            )
+
+
+if __name__ == "__main__":
+    load_dotenv()
+    ROOT_DIR_PATH = os.environ.get("ROOT_DIR_PATH")
+    OUT_DIR_PATH = os.environ.get("OUT_DIR_PATH")
+
+    _extract_and_save_roi(ROOT_DIR_PATH, OUT_DIR_PATH)
+    _make_pseudo_rgb_image(OUT_DIR_PATH)
