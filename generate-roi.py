@@ -34,19 +34,22 @@ def _extract_and_save_roi(base_root_dir_path, base_out_dir_path):
 
         img_dir_path = glob.glob(IMG_ROOT_PATH + dir_name + "/*after*")[0] + "/"
 
+        img_path_glob_last_time = None
+
         for row in data:
             img_no, x, y = row
             img_path_glob = img_dir_path + "*s" + str(img_no).zfill(3) + "*.tif"
             img_path_list = glob.glob(img_path_glob)
-            print("  -", img_path_glob)
+            print(f"  - {img_path_glob}, (x, y) = ({x}, {y})")
 
             # Load 16-bit TIFF images as original pixel values
-            img_b = cv2.imread(img_path_list[1], cv2.IMREAD_UNCHANGED)  # ch01
-            img_g = cv2.imread(img_path_list[2], cv2.IMREAD_UNCHANGED)  # ch02
-            img_r = cv2.imread(img_path_list[3], cv2.IMREAD_UNCHANGED)  # ch03
-            if img_b is None or img_g is None or img_r is None:
-                print("  - Error: Image not found or could not be read.")
-                exit()
+            if img_path_glob_last_time != img_path_glob:
+                img_b = cv2.imread(img_path_list[1], cv2.IMREAD_UNCHANGED)  # ch01
+                img_g = cv2.imread(img_path_list[2], cv2.IMREAD_UNCHANGED)  # ch02
+                img_r = cv2.imread(img_path_list[3], cv2.IMREAD_UNCHANGED)  # ch03
+                if img_b is None or img_g is None or img_r is None:
+                    print("  - Error: Image not found or could not be read.")
+                    exit()
 
             height, width = img_b.shape
             y1 = max(y - ROI_HALF_SIZE, 0)
@@ -95,6 +98,8 @@ def _extract_and_save_roi(base_root_dir_path, base_out_dir_path):
                 out_dir_path + f"img-no{str(img_no).zfill(3)}_y{y}_x{x}_r.png",
                 roi_r.astype(np.uint16),
             )
+
+            img_path_glob_last_time = img_path_glob
 
 
 def _round(src, decimals=0):
